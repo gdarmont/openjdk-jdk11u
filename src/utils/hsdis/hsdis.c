@@ -1,20 +1,42 @@
 /*
- * Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2008, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * The Universal Permissive License (UPL), Version 1.0
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * Subject to the condition set forth below, permission is hereby granted to
+ * any person obtaining a copy of this software, associated documentation
+ * and/or data (collectively the "Software"), free of charge and under any
+ * and all copyright rights in the Software, and any and all patent rights
+ * owned or freely licensable by each licensor hereunder covering either (i)
+ * the unmodified Software as contributed to or provided by such licensor,
+ * or (ii) the Larger Works (as defined below), to deal in both
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * (a) the Software, and
+ *
+ * (b) any piece of software and/or hardware listed in the lrgrwrks.txt file
+ * if one is included with the Software (each a "Larger Work" to which the
+ * Software is contributed by such licensors),
+ *
+ * without restriction, including without limitation the rights to copy,
+ * create derivative works of, display, perform, and distribute the Software
+ * and make, use, sell, offer for sale, import, export, have made, and have
+ * sold the Software and the Larger Work(s), and to sublicense the foregoing
+ * rights on either these or other terms.
+ *
+ * This license is subject to the following condition:
+ *
+ * The above copyright notice and either this complete permission notice or
+ * at a minimum a reference to the UPL must be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+ * NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
@@ -28,12 +50,15 @@
 */
 
 #include <config.h> /* required by bfd.h */
-#include <libiberty.h>
-#include <bfd.h>
-#include <dis-asm.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <string.h>
-#include <errno.h>
+
+#include <libiberty.h>
+#include <bfd.h>
+#include <bfdver.h>
+#include <dis-asm.h>
+
 #include "hsdis.h"
 
 #ifndef bool
@@ -125,15 +150,15 @@ decode_instructions(void* start_pv, void* end_pv,
                     event_callback_t  event_callback_arg,  void* event_stream_arg,
                     printf_callback_t printf_callback_arg, void* printf_stream_arg,
                     const char* options) {
-  return decode_instructions_virtual((uintptr_t)start_pv,
-                                     (uintptr_t)end_pv,
-                                     (unsigned char*)start_pv,
-                                     (uintptr_t)end_pv - (uintptr_t)start_pv,
-                                     event_callback_arg,
-                                     event_stream_arg,
-                                     printf_callback_arg,
-                                     printf_stream_arg,
-                                     options, false);
+  decode_instructions_virtual((uintptr_t)start_pv,
+                             (uintptr_t)end_pv,
+                             (unsigned char*)start_pv,
+                             (uintptr_t)end_pv - (uintptr_t)start_pv,
+                             event_callback_arg,
+                             event_stream_arg,
+                             printf_callback_arg,
+                             printf_stream_arg,
+                             options, false);
 }
 
 static void* decode(struct hsdis_app_data* app_data, const char* options) {
@@ -212,7 +237,6 @@ static const char* format_insn_close(const char* close,
   case dis_condjsr:     type = "condjsr";    break;
   case dis_dref:        type = "dref";       break;
   case dis_dref2:       type = "dref2";      break;
-  case dis_noninsn:     type = "noninsn";    break;
   }
 
   strcpy(buf, close);
@@ -313,7 +337,10 @@ static void setup_app_data(struct hsdis_app_data* app_data,
 
   /* Finish linking together the various callback blocks. */
   app_data->dinfo.application_data = (void*) app_data;
-  app_data->dfn = disassembler(native_bfd);
+  app_data->dfn = disassembler(bfd_get_arch(native_bfd),
+                               bfd_big_endian(native_bfd),
+                               bfd_get_mach(native_bfd),
+                               native_bfd);
   app_data->dinfo.print_address_func = hsdis_print_address_func;
   app_data->dinfo.read_memory_func = hsdis_read_memory_func;
 
@@ -411,7 +438,6 @@ static void parse_caller_options(struct hsdis_app_data* app_data, const char* ca
     }
     p = q;
   }
-  *iop = '\0';
 }
 
 static void print_help(struct hsdis_app_data* app_data,
@@ -462,17 +488,8 @@ static const char* native_arch_name() {
 #ifdef LIBARCH_sparcv9
   res = "sparc:v9b";
 #endif
-#if  defined(LIBARCH_ppc64) || defined(LIBARCH_ppc64le)
+#ifdef LIBARCH_ppc64
   res = "powerpc:common64";
-#endif
-#ifdef LIBARCH_arm
-  res = "arm";
-#endif
-#ifdef LIBARCH_aarch64
-  res = "aarch64";
-#endif
-#ifdef LIBARCH_s390x
-  res = "s390:64-bit";
 #endif
   if (res == NULL)
     res = "architecture not set in Makefile!";
